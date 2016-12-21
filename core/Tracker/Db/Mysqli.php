@@ -25,6 +25,11 @@ class Mysqli extends Db
     protected $username;
     protected $password;
     protected $charset;
+    protected $sslca;
+    protected $sslcert;
+    protected $sslkey;
+    protected $sslcapath;
+    protected $sslcipher;
     protected $activeTransaction = false;
 
     /**
@@ -52,6 +57,14 @@ class Mysqli extends Db
         $this->username = $dbInfo['username'];
         $this->password = $dbInfo['password'];
         $this->charset = isset($dbInfo['charset']) ? $dbInfo['charset'] : null;
+
+        if ($dbInfo['enable_ssl']===1) {
+            $this->sslca = $dbInfo['ssl_ca'];
+            $this->sslcert = $dbInfo['ssl_cert'];
+            $this->sslkey = $dbInfo['ssl_key'];
+            $this->sslcapath = $dbInfo['ssl_ca_path'];
+            $this->sslcipher = $dbInfo['ssl_cipher'];
+        }
     }
 
     /**
@@ -75,12 +88,23 @@ class Mysqli extends Db
 
         $this->connection = mysqli_init();
 
+        if ($this->sslca) {
+            mysqli_ssl_set(
+                $this->connection,
+                $this->sslkey,
+                $this->sslcert,
+                $this->sslca,
+                $this->sslcapath,
+                $this->sslcipher
+            );
+        }
+
         // Make sure MySQL returns all matched rows on update queries including
         // rows that actually didn't have to be updated because the values didn't
         // change. This matches common behaviour among other database systems.
         // See #6296 why this is important in tracker
         $flags = MYSQLI_CLIENT_FOUND_ROWS;
-        mysqli_real_connect($this->connection, $this->host, $this->username, $this->password, $this->dbname, $this->port, $this->socket, $flags);
+        mysqli_real_connect($this->connection, $this->host, $this->username, $this->password, $this->dbname, $this->port, $this->sslca ? MYSQLI_CLIENT_SSL : $this->socket, $flags);
         if (!$this->connection || mysqli_connect_errno()) {
             throw new DbException("Connect failed: " . mysqli_connect_error());
         }
